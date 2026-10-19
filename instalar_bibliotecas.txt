@@ -1,0 +1,43 @@
+1. Instalar e configurar o núcleo ESP32
+Primeiro, adicione a URL do gerenciador de placas da Espressif e instale o núcleo.
+
+bash
+# Adiciona a URL do pacote ESP32 (necessário apenas uma vez)
+arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+
+# Atualiza os índices de núcleos e bibliotecas
+arduino-cli core update-index
+arduino-cli lib update-index
+
+# Instala o núcleo ESP32
+arduino-cli core install esp32:esp32
+Nota: O comando core install baixa o núcleo e todas as ferramentas de compilação necessárias .
+
+2. Instalar as bibliotecas de terceiros
+Instale as bibliotecas que não vêm no núcleo do ESP32.
+
+bash
+arduino-cli lib install "ArduinoJson"
+arduino-cli lib install "TFT_eSPI"
+arduino-cli lib install "XPT2046_Touchscreen"
+(As bibliotecas WiFi.h e HTTPClient.h já foram instaladas junto com o núcleo no passo anterior).
+
+3. Comando para compilar
+Você precisa saber o FQBN (Fully Qualified Board Name) da sua placa CYD. Um valor comum para placas ESP32 genéricas é esp32:esp32:esp32, mas verifique o seu modelo específico com arduino-cli board list.
+
+Com o sketch aberto no terminal (na pasta do seu projeto), execute:
+
+bash
+arduino-cli compile --fqbn esp32:esp32:esp32 .
+Substitua esp32:esp32:esp32 pelo FQBN correto da sua placa, se necessário.
+
+Lembrete importante sobre o qrcode
+Como não vamos instalar a biblioteca QRCode via CLI, certifique-se de que a estrutura da pasta do seu projeto esteja assim:
+
+text
+SeuProjeto/
+├── SeuProjeto.ino
+└── src/
+    ├── qrcode.h
+    └── qrcode.c
+Se o qrcode.c estiver apenas na raiz (junto do .ino), o Arduino CLI não o compilará, e você receberá erros de linker (undefined reference).
