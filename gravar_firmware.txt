@@ -1,0 +1,17 @@
+# 1. Compilar o projeto
+
+arduino-cli compile --fqbn esp32:esp32:esp32 ~/CYD_POS_KIX
+
+
+
+# 2. Enviar (Upload) para o ESP32
+
+# (Nota: Se o ESP32 demorar para responder durante o upload, segure o botão BOOT na parte de trás da placa CYD até a barra de progresso começar a subir).
+
+arduino-cli upload -p /dev/ttyUSB0 --fqbn esp32:esp32:esp32 ~/CYD_POS_KIX
+
+
+
+# 3. Monitor Serial
+
+arduino-cli monitor -p /dev/ttyUSB0 -c baudrate=115200
