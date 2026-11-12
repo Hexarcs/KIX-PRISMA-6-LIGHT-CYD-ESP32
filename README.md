@@ -1,181 +1,356 @@
-# CYD POS KIX — README
+> 🇧🇷 [Leia em português](README.pt-BR.md)
 
-Terminal de Point of Sale (PDV) em Bitcoin Lightning, rodando em um ESP32 com display touchscreen (placa CYD — *Cheap Yellow Display*, ESP32-2432S028). O dispositivo se conecta a uma carteira **LNbits** para gerar e acompanhar faturas Lightning (BOLT11), permitindo cobranças em satoshis diretamente pela tela touch.
+# KIX POS
 
----
+A **Lightning Network point-of-sale (PoS) terminal** for the **ESP32**. It uses a
+240×320 TFT display (portrait), a **resistive XPT2046** touchscreen and the
+**LNbits** API to create and verify BOLT11 invoices.
 
-## O que o firmware faz
-
-1. **Conecta ao Wi-Fi** configurado no código (`ssid` / `password`).
-2. Exibe um **teclado numérico** no display TFT (320x240 em modo paisagem), onde o operador digita o valor em **sats**.
-3. Ao confirmar (`OK`), o ESP32 envia uma requisição à API do **LNbits** para criar uma *invoice* Lightning.
-4. Mostra o **QR Code** da invoice na tela, junto com o valor a cobrar e botões de ação:
-   - **CHECAR PAGAMENTO** — verifica manualmente se a invoice foi paga.
-   - **VOLTAR** — cancela e retorna ao teclado.
-5. Enquanto a tela de QR Code está ativa, o firmware **consulta o LNbits automaticamente a cada 3 segundos** (verificação silenciosa).
-6. Ao detectar pagamento, mostra a tela verde **"PAGO COM SUCESSO!"** e retorna ao teclado após 5 segundos ou ao toque.
-7. Exibe uma tela de erro em caso de falhas HTTP, JSON ou geração de QR Code.
+> The operator types an amount in **satoshis**, the device creates a Lightning
+> invoice, shows it as a **QR code**, polls until the customer pays, then shows a
+> "PAID" screen and returns to the keypad.
 
 ---
 
-## Hardware necessário
+## Features
 
-- Placa **CYD (ESP32-2432S028)** — ESP32 com TFT de 2,8" ILI9341 e touch resistivo XPT2046.
-- Cabo USB para gravação e alimentação.
-- Rede Wi-Fi com acesso à internet para alcançar o servidor LNbits.
+- 240×320 portrait touch UI with a numeric keypad (3×4).
+- Lightning invoice creation via LNbits (`POST /api/v1/payments`).
+- QR code rendering of the BOLT11 invoice (local `qrcode.c` library).
+- Automatic payment polling every 3 s (`GET /api/v1/payments/{hash}`).
+- Wallet balance check (`GET /api/v1/wallet`).
+- On-device **setup portal** — a small `WIFI` button opens a captive portal to
+  configure Wi-Fi, LNbits URL, API key and Bluetooth pairing PIN from a phone
+  browser.
+- A **`BT` toggle button** next to `WIFI` turns the Bluetooth serial server on/off.
+- Serial (UART) **and Bluetooth SPP** command interface — control the device from a
+  USB serial monitor or a phone's Bluetooth terminal app (pair with **`KIX-POS`**,
+  "Just Works" pairing — no PIN).
+- All dependencies vendored in `libraries/` (no `arduino-cli lib install` needed),
+  including a **`TFT_eSPI`** carrying this display's configuration so the color fix
+  is never lost on library reinstall.
 
-### Pinos do touch
+---
 
-| Sinal | GPIO |
-| :--- | :---: |
-| XPT2046 IRQ | 36 |
-| XPT2046 MOSI | 32 |
-| XPT2046 MISO | 39 |
-| XPT2046 CLK | 25 |
-| XPT2046 CS | 33 |
+## Hardware
 
-> **Atenção:** a biblioteca `TFT_eSPI` precisa estar configurada para a placa CYD. No arquivo `User_Setup.h`, confira os parâmetros abaixo e ajuste conforme sua placa:
+- **ESP32** dev board with integrated display + touch.
+- TFT **240×320** (ILI9341 driver), portrait rotation.
+- **Resistive XPT2046** touch (SPI).
+- The wiring below matches the **ESP32-2432S028** ("Cheap Yellow Display" / CYD)
+  pinout (ILI9341 + resistive-touch variant).
 
-```cpp
-#define ILI9341_DRIVER
-#define TFT_MISO 12
-#define TFT_MOSI 13
-#define TFT_SCLK 14
-#define TFT_CS   15
-#define TFT_DC   2
-#define TFT_RST  -1
-#define TFT_BL   21
+| Signal             | GPIO |
+|--------------------|------|
+| TFT MISO           | 12   |
+| TFT MOSI (SDA)     | 13   |
+| TFT SCLK           | 14   |
+| TFT CS             | 15   |
+| TFT DC             | 2    |
+| TFT RST            | -1 (not connected) |
+| TFT backlight BL   | 21   |
+| Touch MOSI         | 32   |
+| Touch MISO         | 39   |
+| Touch CLK          | 25   |
+| Touch CS           | 33   |
+| Touch IRQ          | 36   |
+
+The display driver is configured in
+[`libraries/TFT_eSPI/User_Setup.h`](libraries/TFT_eSPI/User_Setup.h) with
+`ILI9341_2_DRIVER`, 240×320, **plus** `#define TFT_INVERSION_ON`. This panel is
+"natively inverted" — without that line the colors come out as a negative (black
+turns white, green turns lilac) — so the inversion line is required for correct
+colors. The firmware sets `tft.setRotation(2)` for portrait orientation.
+
+---
+
+## Repository structure
+
+```
+.
+├── README.md                               # this file
+├── README.pt-BR.md                         # Portuguese translation
+├── comandos_arduino_cli_gravar.txt         # arduino-cli commands (PT-BR)
+├── architecture.md                         # detailed architecture (EN)
+├── arquitetura.md                          # detailed architecture (PT-BR)
+├── ultimate_CYD_ESP32_BTC_POS.ino          # main firmware
+├── qrcode.c / qrcode.h                     # local QR-code generator (MIT)
+└── libraries/                              # vendored libraries
+    ├── TFT_eSPI/              2.5.43       # display driver (local ILI9341 config)
+    ├── XPT2046_Touchscreen/   1.4          # resistive touch driver
+    ├── ArduinoJson/           7.4.3        # JSON parse/serialize
+    └── WiFiManager/           2.0.17       # captive portal (AP mode) for Wi-Fi setup
 ```
 
----
+> All four libraries are vendored in `libraries/`, so you do **not** need
+> `arduino-cli lib install`. `TFT_eSPI` is kept **local** because it carries this
+> display's specific configuration.
 
-## Configuração necessária antes de compilar
-
-No topo do arquivo `.ino`, configure suas credenciais Wi-Fi e os dados de acesso à API LNbits:
-
-```cpp
-const char* ssid     = "SUA_REDE_WIFI";
-const char* password = "SUA_SENHA_WIFI";
-
-String lnbits_url        = "https://SEU-SERVIDOR-LNBITS/api/v1/payments";
-String lnbits_wallet_url = "https://SEU-SERVIDOR-LNBITS/api/v1/wallet";
-String lnbits_api_key    = "SUA_CHAVE_DE_API_LNBITS";
-```
-
-A **API key** deve pertencer a uma carteira LNbits com permissões para criar invoices (`invoice:create`) e consultar pagamentos (`payments:read`), conforme a configuração da sua instância.
-
-### Bibliotecas necessárias
-
-Instale as seguintes bibliotecas pelo Arduino Library Manager:
-
-- `TFT_eSPI` — Bodmer.
-- `XPT2046_Touchscreen` — Paul Stoffregen.
-- `ArduinoJson` — Benoit Blanchon, versão 6.
-- `qrcode` — biblioteca que disponibiliza `qrcode.h`.
-- `WiFi`, `HTTPClient` e `SPI` — incluídas no core ESP32.
+> `WiFiManager` is used by the on-device `WIFI` button to open a captive portal
+> (AP mode) and store the chosen Wi-Fi credentials in NVS.
 
 ---
 
-## Como gravar o firmware
+## Getting started
 
-O projeto pressupõe que o `arduino-cli` esteja instalado e que o core ESP32 esteja configurado.
-
-Instale o core, se necessário:
+### 1. Install Arduino CLI
 
 ```bash
+# Linux/macOS (adapt the URL/version as needed)
+curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+
+# or download a release from:
+# https://arduino.github.io/arduino-cli/installation/
+```
+
+Verify:
+
+```bash
+arduino-cli version
+```
+
+### 2. Install the ESP32 core
+
+```bash
+arduino-cli core update-index
 arduino-cli core install esp32:esp32
 ```
 
-### 1. Compilar
+### 3. Libraries
 
-```bash
-arduino-cli compile \
-  --fqbn esp32:esp32:esp32 \
-  ~/CYD_POS_KIX
+All libraries are **vendored** in `libraries/` (`TFT_eSPI`, `XPT2046_Touchscreen`,
+`ArduinoJson`, `WiFiManager`), so you do **not** need `arduino-cli lib install`.
+They are picked up automatically via the `--libraries` flag in the compile command
+below.
+
+### 4. Configure credentials
+
+Edit the top of `ultimate_CYD_ESP32_BTC_POS.ino`:
+
+```cpp
+const char* ssid     = "SEU_SSID";
+const char* password = "SUA_SENHA";
+
+String lnbits_url        = "https://SEU_DOMINIO/api/v1/payments";
+String lnbits_wallet_url = "https://SEU_DOMINIO/api/v1/wallet";
+String lnbits_api_key    = "SUA_CHAVE_API_LNBITS";
 ```
 
-### 2. Enviar para o ESP32
+> ⚠️ The credentials in the file are **placeholders**. Replace them with your own
+> values before flashing. Never commit a real `X-Api-Key` (the `credenciais.txt`
+> file is already in `.gitignore`).
 
-```bash
-arduino-cli upload \
-  -p /dev/ttyUSB0 \
-  --fqbn esp32:esp32:esp32 \
-  ~/CYD_POS_KIX
-```
+> 💡 **Bluetooth + HTTPS heap warning:** the ESP32's TLS handshake needs a large
+> heap chunk, and running **Bluetooth Classic at the same time** can make HTTPS
+> calls fail (invoice creation works only with Bluetooth off). The firmware now
+> auto-detects `http://` vs `https://` in the URL: `http://` uses a lightweight
+> client and works alongside Bluetooth. If you want to use the Bluetooth terminal
+> **and** create invoices at the same time, point the endpoint at **`http://`**.
+> With `https://`, turn Bluetooth off (the `BT` button) before creating an invoice.
 
-> **Dica:** se o upload travar, segure o botão `BOOT` da placa até a gravação começar e solte em seguida.
+**Over-the-air setup (no re-flash):** the `WIFI` button on the keypad opens a
+captive portal (`KIX-POS-Setup` / `kixpos123`). Connect a phone to that network,
+browse to `192.168.4.1` and enter the local Wi-Fi. The same page has fields for
+the **LNbits URL**, **API key** and **Bluetooth PIN** (pre-filled with the current
+values — leave them blank to keep the current ones). Everything is stored in NVS
+and used automatically on the next boot, falling back to the hardcoded values
+above only when nothing was saved.
 
-Ajuste `/dev/ttyUSB0` para a porta correta do seu sistema, como `/dev/ttyUSB1` ou `/dev/ttyACM0`.
+> ⚠️ **Bluetooth PIN note:** ESP32 Arduino core **3.x removed legacy fixed-PIN
+> pairing**, so the `Bluetooth PIN` field is currently **saved but not enforced** —
+> pairing uses "Just Works" (no PIN). A fixed PIN only works if the firmware is
+> rebuilt as an ESP-IDF component with `CONFIG_BT_SSP_ENABLED` disabled.
 
-Para descobrir as placas e portas disponíveis:
+---
+
+## Flashing with Arduino CLI
+
+Run these commands from the **repository root** (the folder that contains
+`ultimate_CYD_ESP32_BTC_POS.ino`).
+
+> `--libraries` points to the vendored `libraries/` folder. **Important:**
+> `arduino-cli` does not auto-detect the sketch's `libraries/` folder, so without
+> this flag it uses the system libraries (and the colors stay inverted).
+
+### Find the serial port
 
 ```bash
 arduino-cli board list
 ```
 
-### 3. Monitor Serial
+Typical values: `/dev/ttyUSB0` (Linux), `/dev/cu.usbserial-*` (macOS), `COM3` (Windows).
+
+### Compile
 
 ```bash
-arduino-cli monitor \
+arduino-cli compile \
+  --fqbn esp32:esp32:esp32 \
+  --board-options PartitionScheme=huge_app \
+  --libraries libraries \
+  --verbose \
+  .
+```
+
+- `PartitionScheme=huge_app` reserves the maximum app space (the display/JSON
+  libraries are large; the default partition does not fit this firmware).
+
+### Upload (flash the board)
+
+```bash
+arduino-cli upload \
+  --verbose \
   -p /dev/ttyUSB0 \
-  -c baudrate=115200
+  --fqbn esp32:esp32:esp32 \
+  --board-options PartitionScheme=huge_app \
+  .
+```
+
+Replace `/dev/ttyUSB0` with the port from `arduino-cli board list`.
+
+### Compile + upload in one step
+
+```bash
+arduino-cli compile \
+  --fqbn esp32:esp32:esp32 \
+  --board-options PartitionScheme=huge_app \
+  --libraries libraries \
+  --verbose \
+  . \
+&& arduino-cli upload \
+  --verbose \
+  -p /dev/ttyUSB0 \
+  --fqbn esp32:esp32:esp32 \
+  --board-options PartitionScheme=huge_app \
+  .
+```
+
+### Serial monitor
+
+```bash
+arduino-cli monitor -p /dev/ttyUSB0 -c baudrate=115200
+```
+
+### Export a compiled binary (optional)
+
+```bash
+arduino-cli compile \
+  --fqbn esp32:esp32:esp32 \
+  --board-options PartitionScheme=huge_app \
+  --libraries libraries \
+  --verbose \
+  --output-dir ./build_output \
+  .
+```
+
+The command reference is also kept in
+[`comandos_arduino_cli_gravar.txt`](comandos_arduino_cli_gravar.txt) (PT-BR).
+
+---
+
+## Usage
+
+### On the touchscreen
+
+1. Type the amount in **sats** on the keypad.
+2. Press **OK** → the invoice is created and shown as a QR code.
+3. Customer scans and pays with a Lightning wallet.
+4. The device auto-checks every 3 s (or press **CHECAR**) → shows **PAGO COM SUCESSO!**.
+5. Press **VOLTAR** to go back to the keypad.
+
+Tap **WIFI** (top-right of the keypad) to enter the Wi-Fi setup portal described
+above. The **`BT`** button next to it toggles the Bluetooth serial server on/off
+(green `BT ON` = on, grey `BT OFF` = off).
+
+### Over serial (USB or Bluetooth)
+
+The same commands work over the USB serial monitor (115200 baud) and over a
+**Bluetooth SPP** terminal — pair with the device named **`KIX-POS`** (pairing is
+"Just Works", no PIN; see the note in the setup section above).
+
+| Command  | Action                                       |
+|----------|----------------------------------------------|
+| `I:1500` | Create an invoice for 1500 sats              |
+| `C` / `C:`| Check the active invoice's payment status   |
+| `L` / `L:`| Query wallet balance                        |
+| `P` / `P:`| Print the active BOLT11 invoice (copy/paste) |
+| `H`      | Return to the home (keypad) screen           |
+| `H:`     | Print system status (Wi-Fi, IP, BT, heap…)   |
+| `help`   | List all available commands                  |
+
+> 📱 **Bluetooth + TLS workaround:** Bluetooth and HTTPS can't share the ESP32's
+> memory at the same time, so before any TLS call (invoice, balance, check) the
+> device **turns Bluetooth off automatically** and warns you over the terminal to
+> reconnect in 10 s. Any operation requested **over Bluetooth** (`I:` invoice,
+> `C` check, `L` balance) turns Bluetooth back on by itself after **10 s**; for an
+> invoice, the automatic payment check also runs only for those 10 s and then
+> stops. Operations from the touchscreen or USB serial leave Bluetooth **off** —
+> tap the **`BT`** button to turn it back on. When a Bluetooth client reconnects,
+> the device reports the result over Bluetooth: `PAGO COM SUCESSO!` / the **BOLT11**
+> for an invoice, or the check/balance result for `C` / `L`. Type `help` for the
+> command list.
+
+Example:
+
+```
+> I:1500
+< [INVOICE] ===== INICIO =====
+< ...
+< [INVOICE] ===== FIM OK =====
+> C
+< [CHECK] PAGAMENTO CONFIRMADO!
 ```
 
 ---
 
-## Comandos de depuração via Serial
+## How the code works
 
-Configure o monitor serial para **115200 baud**. Envie os comandos com uma quebra de linha (`\n`) ao final.
+The firmware is a **state machine** driven by `currentScreen` (an `enum` with six
+states):
 
-| Comando | Ação |
-| :--- | :--- |
-| `I:100` | Cria uma invoice de 100 sats. |
-| `C:` | Verifica manualmente o pagamento da invoice atual. |
-| `P:` | Imprime o BOLT11 atual no monitor Serial. |
-| `L:` | Consulta e exibe o saldo da carteira LNbits. |
-| `H:` | Retorna à tela inicial (teclado) e limpa a invoice atual. |
+| State               | Screen                         |
+|---------------------|--------------------------------|
+| `SCREEN_CONNECTING` | "Conectando WiFi…"             |
+| `SCREEN_KEYPAD`     | Numeric keypad (3×4)           |
+| `SCREEN_LOADING`    | "CRIANDO INVOICE…"             |
+| `SCREEN_QR_CODE`    | Invoice QR code + value        |
+| `SCREEN_PAID`       | "PAGO COM SUCESSO!"            |
+| `SCREEN_ERROR`      | Title + detail + VOLTAR button |
 
----
+The main `loop()` is **non-blocking** and runs seven phases every iteration:
 
-## Fluxo de funcionamento
+1. **Serial reception** — reads USB UART **and Bluetooth SPP**, dispatching
+   `I:` / `C` / `L` / `P` / `H` / `H:` commands to the same handler.
+2. **Touch** — reads the XPT2046 with 180 ms debounce and hit-tests the current screen.
+3. **Debug heartbeat** — prints a "loop alive" line every 30 s.
+4. **Auto-check** — if on the QR screen, polls the invoice every 3 s.
+5. **Auto-return** — 5 s after "PAID", returns to the keypad.
+6. **BT auto-re-enable** — for a Bluetooth-requested operation (invoice/check/balance), turns Bluetooth back on after 10 s (for invoices, the auto-check also stops at 10 s; USB/touch keep auto-checking).
+7. **BT report** — once a client reconnects, reports `PAGO` / not-paid + BOLT11.
 
-```text
-[Wi-Fi]
-   |
-   v
-[Teclado numérico]
-   |
-   v
-[Confirmação do valor - OK]
-   |
-   v
-[Criando invoice LNbits]
-   |
-   v
-[QR Code + verificação automática a cada 3s]
-   |
-   v
-[Pagamento confirmado]
-   |
-   v
-[Tela "PAGO COM SUCESSO!"]
-   |
-   v
-[Retorno ao teclado]
-```
+### Network flow (LNbits)
 
----
+- `createInvoice(sats)` → `POST /api/v1/payments` with
+  `{"out": false, "amount": sats, "memo": "KIX-POS"}` → parses `payment_request`
+  (BOLT11) and `payment_hash` → renders the QR code.
+- `verificarPagamentoSilencioso()` / `manualCheck()` → `GET /api/v1/payments/{hash}`
+  → checks the `paid` field.
+- `checkBalance()` → `GET /api/v1/wallet` → reads `balance_msat`, divides by 1000.
 
-## Observações importantes
+All requests authenticate with the `X-Api-Key` header.
 
-- **Limite do QR Code:** o firmware utiliza QR Code versão 14 com correção de erros `ECC_LOW`. Invoices BOLT11 com mais de aproximadamente 450 caracteres podem exibir o aviso `INVOICE MUITO LONGA` em vez do QR Code.
-- **Calibração do touch:** os parâmetros `TOUCH_MIN_X`, `TOUCH_MAX_X`, `TOUCH_MIN_Y` e `TOUCH_MAX_Y` podem exigir ajustes dependendo da unidade CYD. O firmware imprime no monitor Serial os valores brutos e mapeados de cada toque para facilitar a calibração.
-- **Conectividade:** o servidor LNbits precisa estar acessível pela rede Wi-Fi do ESP32. O código utiliza URLs `https://`.
-- **Segurança HTTPS:** não utilize o dispositivo em produção sem verificar a validação dos certificados TLS e a segurança das requisições HTTP utilizadas pelo firmware.
-- **Proteção das credenciais:** nunca publique sua senha Wi-Fi ou a variável `lnbits_api_key` com credenciais reais em um repositório público do GitHub. Considere utilizar configurações locais excluídas pelo `.gitignore`.
+> ⚠️ **Security note:** the code uses `client.setInsecure()` (no TLS certificate
+> validation) and hardcodes credentials at the top of the file. This is acceptable
+> for diagnostics but **not** for production — validate the TLS certificate and move
+> secrets to config/NVS.
+
+For a full walkthrough (ASCII diagrams, function reference, security notes), see
+[`architecture.md`](architecture.md) (EN) or [`arquitetura.md`](arquitetura.md) (PT-BR).
 
 ---
 
-## Licença
+## License
 
-Uso livre para fins pessoais e educacionais. Verifique as licenças das bibliotecas de terceiros utilizadas neste projeto.
+The main firmware and bundled `qrcode.c` (based on Nayuki's QR-Code-generator) are
+provided under the MIT license. Individual vendored libraries retain their own
+licenses (see each `libraries/*` folder). Add a top-level `LICENSE` file if you
+plan to distribute this project.

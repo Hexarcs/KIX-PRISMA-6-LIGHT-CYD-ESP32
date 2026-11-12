@@ -1,0 +1,28 @@
+# =============================================================
+# COMANDOS ARDUINO CLI — KIX POS (CYD resistiva)
+# =============================================================
+# O firmware usa bibliotecas VENDIDAS em libraries/ (TFT_eSPI,
+# XPT2046_Touchscreen, ArduinoJson, WiFiManager). O arduino-cli NÃO
+# detecta sozinho a pasta libraries/ do sketch, então o --libraries
+# é obrigatório no compile (senão ele usa as bibliotecas do sistema
+# e as cores ficam invertidas).
+# =============================================================
+
+# 1. Compilar (o --libraries faz usar a TFT_eSPI local, com a correção de cor)
+arduino-cli compile --fqbn esp32:esp32:esp32 \
+  --board-options PartitionScheme=huge_app \
+  --libraries /home/Mxlinux/ultimate_CYD_ESP32_BTC_POS/libraries \
+  --verbose \
+  /home/Mxlinux/ultimate_CYD_ESP32_BTC_POS
+
+# 2. Gravar (upload não recompila, então não precisa do --libraries aqui)
+arduino-cli upload -p /dev/ttyUSB0 --fqbn esp32:esp32:esp32 \
+  --board-options PartitionScheme=huge_app --verbose \
+  /home/Mxlinux/ultimate_CYD_ESP32_BTC_POS
+
+# 3. Monitor serial
+arduino-cli monitor -p /dev/ttyUSB0 -c baudrate=115200
+
+# Dica: se o upload travar, segure o botão BOOT até a gravação começar.
+# Dica: se aparecer erro "... .d: No such file or directory", rode:
+#     arduino-cli cache clean

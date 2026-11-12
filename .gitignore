@@ -1,0 +1,29 @@
+# Arduino build output
+build_output/
+build/
+*.bin
+*.elf
+*.map
+*.hex
+*.o
+*.d
+
+# Arduino CLI / core caches
+.arduino/
+arduino-cli.yaml
+
+# Editors / IDE
+.vscode/
+*.code-workspace
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Credenciais reais e material de referência local (NÃO versionar)
+credenciais.txt
+referencia_de_como_deveficar.txt
+
+# NOTA: a pasta libraries/ É versionada. Ela contém a TFT_eSPI com a
+# configuração local deste hardware (ILI9341 + correção de cores).
